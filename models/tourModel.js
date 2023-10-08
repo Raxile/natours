@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const slugify = require('slugify');
 
 const tourSchema = new mongoose.Schema(
   {
@@ -7,7 +8,10 @@ const tourSchema = new mongoose.Schema(
       required: [true, 'A tour must have a name'],
       unique: true,
       trim: true,
+      maxlength: [40, 'A tour name must have less or equal than 40 characters'],
+      minlength: [10, 'A tour name must have more or equal than 10 characters'],
     },
+    slug: String,
     duration: {
       type: Number,
       required: [true, 'A tour must have a duration'],
@@ -19,14 +23,24 @@ const tourSchema = new mongoose.Schema(
     difficulty: {
       type: String,
       required: [true, 'A tour must have a difficulty'],
+      enum: {
+        values: ['easy', 'medium', 'difficult'],
+        message: 'difficulty is either easy,medium,difficult',
+      },
     },
     ratingsAverage: {
       type: Number,
       default: 4.5,
+      min: [1.0, 'Rating must be above 1.0'],
+      max: [5.0, 'Rating must be below 5.0'],
     },
     ratingsQuantity: {
       type: Number,
       default: 0,
+    },
+    secretTour: {
+      type: Boolean,
+      default: false,
     },
     price: {
       type: Number,
@@ -60,6 +74,30 @@ const tourSchema = new mongoose.Schema(
   },
   { toJSON: { virtuals: true }, toObject: { virtuals: true } },
 );
+
+// DOCUMENTS MIDDLEWARE: runs before .save() and .create()
+tourSchema.pre('save', function (next) {
+  this.slug = slugify(this.name, { lower: true });
+  next();
+});
+
+// tourSchema.post('save', function (doc, next) {
+//   console.log(doc, '--->');
+//   next();
+// });
+
+// Query MiddlerWare
+
+tourSchema.pre(/^find/, function (next) {
+  this.find({ secretTour: { $ne: true } });
+  next();
+});
+
+tourSchema.pre('aggregate', function (next) {
+  this.pipeline().unshift({ $match: { secretTour: { $ne: true } } });
+  next();
+});
+
 tourSchema.virtual('durationWeeks').get(function () {
   return this.duration / 7;
 });
